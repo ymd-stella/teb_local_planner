@@ -63,6 +63,8 @@
 #include "teb_local_planner/pose_se2.h"
 #include "teb_local_planner/teb_config.h"
 
+#include <random>
+
 namespace teb_local_planner
 {
 
@@ -123,7 +125,7 @@ protected:
   /**
    * @brief Protected constructor that should be called by subclasses
    */
-  GraphSearchInterface(const TebConfig& cfg, HomotopyClassPlanner* hcp) : cfg_(&cfg), hcp_(hcp){}
+  GraphSearchInterface(const TebConfig& cfg, HomotopyClassPlanner* hcp) : cfg_(&cfg), hcp_(hcp), mt_(rnd_()) {}
 
   /**
    * @brief Depth First Search implementation to find all paths between the start and the specified goal vertex.
@@ -141,9 +143,17 @@ protected:
 
   void DepthFirst(HcGraph& g, std::vector<HcGraphVertexType>& visited, const HcGraphVertexType& goal, double start_orientation, double goal_orientation, const geometry_msgs::msg::Twist* start_velocity, bool free_goal_vel = false);
 
+  void ProbSearch(HcGraph &g, const HcGraphVertexType &start,
+                  const HcGraphVertexType &goal, double start_orientation,
+                  double goal_orientation,
+                  const geometry_msgs::msg::Twist *start_velocity);
+
 protected:
     const TebConfig* cfg_; //!< Config class that stores and manages all related parameters
     HomotopyClassPlanner* const hcp_; //!< Raw pointer to the HomotopyClassPlanner. The HomotopyClassPlanner itself is guaranteed to outlive the graph search class it is holding.
+
+    std::random_device rnd_;
+    std::mt19937 mt_;
 
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW

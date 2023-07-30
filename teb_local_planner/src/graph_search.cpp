@@ -88,6 +88,39 @@ void GraphSearchInterface::DepthFirst(HcGraph& g, std::vector<HcGraphVertexType>
   }
 }
 
+void GraphSearchInterface::ProbSearch(
+    HcGraph &g, const HcGraphVertexType &start, const HcGraphVertexType &goal,
+    double start_orientation, double goal_orientation,
+    const geometry_msgs::msg::Twist *start_velocity) {
+  std::vector<HcGraphVertexType> visited;
+  visited.push_back(start);
+
+  while (visited.back() != goal) {
+    std::vector<HcGraphVertexType> next_vertices;
+    HcGraphAdjecencyIterator it, end;
+    for (boost::tie(it, end) = boost::adjacent_vertices(visited.back(), g);
+         it != end; ++it) {
+      if (std::find(visited.begin(), visited.end(), *it) != visited.end()) {
+        continue;
+      }
+
+      next_vertices.push_back(*it);
+    }
+
+    // next_vertices から乱択して visited に追加する
+    if (next_vertices.size() == 0) {
+      return;
+    }
+    std::uniform_int_distribution<> rand_index(0, next_vertices.size() - 1);
+    visited.push_back(next_vertices[rand_index(mt_)]);
+  }
+
+  hcp_->addAndInitNewTeb(
+      visited.begin(), visited.end(),
+      std::bind(getVector2dFromHcGraph, std::placeholders::_1, boost::cref(g)),
+      start_orientation, goal_orientation, start_velocity);
+}
+
 
 
 void lrKeyPointGraph::createGraph(const PoseSE2& start, const PoseSE2& goal, double dist_to_obst, double obstacle_heading_threshold, const geometry_msgs::msg::Twist* start_velocity, bool free_goal_vel)
@@ -338,9 +371,23 @@ void ProbRoadmapGraph::createGraph(const PoseSE2& start, const PoseSE2& goal, do
   }
 
   /// Find all paths between start and goal!
-  std::vector<HcGraphVertexType> visited;
-  visited.push_back(start_vtx);
-  DepthFirst(graph_,visited,goal_vtx, start.theta(), goal.theta(), start_velocity, free_goal_vel);
+  int thresh_edges = 50;
+  if (boost::num_edges(graph_) < thresh_edges) {
+    std::vector<HcGraphVertexType> visited;
+    visited.push_back(start_vtx);
+    DepthFirst(graph_, visited, goal_vtx, start.theta(), goal.theta(),
+               start_velocity, free_goal_vel);
+  } else {
+    int n_search = 100;
+    for (int i = 0; i < n_search; i++) {
+      ProbSearch(graph_, start_vtx, goal_vtx, start.theta(), goal.theta(),
+                 start_velocity);
+      if ((int)hcp_->getTrajectoryContainer().size() >=
+          cfg_->hcp.max_number_classes) {
+        break;
+      }
+    }
+  }
 }
 
 } // end namespace
